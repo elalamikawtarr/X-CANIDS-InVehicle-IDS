@@ -27,4 +27,17 @@ print(f"Messages Normaux (0) : {repartition[0]} ({pourcentage[0]:.2f}%)")
 if 1 in repartition:
     print(f"Messages d'Attaque (1) : {repartition[1]} ({pourcentage[1]:.2f}%)")
 else:
-    print(" Attention : Aucune attaque détectée dans ce fichier !")
+    print(" Attention : Aucune attaque détectée dans ce fichier ")
+
+# 1. On sépare les features (X) et la cible (y)
+X = df_test.drop(columns=['label'])
+y = df_test['label']
+
+# 2. Conversion : On s'assure que tout est numérique
+
+for col in X.select_dtypes(include=['object']).columns:
+    X[col] = pd.to_numeric(X[col], errors='coerce')
+
+X = X.fillna(0)
+
+print("\n Données nettoyées et formatées pour XGBoost")
