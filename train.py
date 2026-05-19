@@ -135,3 +135,33 @@ fig.update_layout(
 fig.show()
 
 print("-----------------Félicitations -- Le système IDS global est terminé et opérationnel.")
+
+
+
+#  ENTRAÎNEMENT DU MODÈLE GLOBAL 
+
+
+X = df_test.drop(columns=['label'])    #X = Signaux
+y = df_test['label']   #y = label d'attaque
+
+# Nettoyage rapide 
+X = X.apply(pd.to_numeric, errors='coerce').fillna(0)
+
+# Division Train/Test
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+print(f" Lancement de l'entraînement sur {len(X_train)} messages CAN...")
+
+model_global = LGBMClassifier(
+    n_estimators=100,
+    learning_rate=0.1,
+    num_leaves=31,
+    random_state=42,
+    n_jobs=-1 # Utilise tous les cœurs de ton processeur
+)
+
+model_global.fit(X_train, y_train)
+
+
+joblib.dump(model_global, "x_canids_model.pkl")
+print("  Modèle sauvegardé sous 'x_canids_model.pkl'")
