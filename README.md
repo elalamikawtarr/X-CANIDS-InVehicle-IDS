@@ -42,7 +42,7 @@ Les approches classiques basées sur des règles ne suffisent plus.
 
 
 ### Deep Learning
-- Autoencoder (TensorFlow/Keras)  
+- Autoencoder 
 
 ---
 
