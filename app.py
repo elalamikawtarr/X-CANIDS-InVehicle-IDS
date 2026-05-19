@@ -1,170 +1,250 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import joblib
+
+from google.cloud import bigquery
+from google.oauth2 import service_account
+
+from sklearn.ensemble import IsolationForest
+from sklearn.preprocessing import RobustScaler
+
 import plotly.express as px
 import plotly.graph_objects as go
-from sklearn.metrics import classification_report, confusion_matrix, roc_curve, auc
-import time
+
 
 st.set_page_config(
     page_title="X-CANIDS",
-    page_icon="🛡️",
     layout="wide"
 )
 
-st.title("X-CANIDS - Intelligent CAN Bus IDS")
-st.markdown("### Détection CAN Bus avec XGBoost")
+st.title("X-CANIDS - Automotive IDS")
+st.markdown("Intelligent CAN Bus Intrusion Detection System")
 
-st.sidebar.header("Configuration")
 
-threshold_manual = st.sidebar.slider(
-    "Seuil de détection",
-    0.0,
-    1.0,
-    0.24,
-    0.01
+KEY_PATH = r"C:\Users\elala\Downloads\Projet\key_cloud.json"
+
+credentials = service_account.Credentials.from_service_account_file(KEY_PATH)
+
+client = bigquery.Client(
+    credentials=credentials,
+    project=credentials.project_id,
+    location="europe-southwest1"
 )
 
-simulation_speed = st.sidebar.slider(
-    "Vitesse simulation",
-    0.0,
-    1.0,
-    0.05
-)
+st.success("BigQuery Connected")
 
-@st.cache_resource
-def load_model():
-    return joblib.load("model/xgb_model.pkl")
+query = """
+SELECT
+    session_id,
+    arbitration_id,
+    signals_count,
+    messages_count,
+    uniq_data_count,
+    interval_mean,
+    interval_std,
+    uniq_dlc
+FROM `project-e6de9b55-41d5-4f13-ae0.can_ids_gold.vw_can_id_profile_by_session`
+LIMIT 15000
+"""
 
 try:
-    model = load_model()
-except:
-    model = None
+    df = client.query(query).to_dataframe()
+except Exception as e:
+    st.error(f"Query Error: {e}")
+    st.stop()
 
-uploaded_file = st.file_uploader("Uploader fichier parquet", type=["parquet"])
+df.columns = df.columns.str.strip()
 
-def preprocess_data(df):
-    df = df.copy()
-    df = df.dropna()
-    df = df.drop_duplicates()
+numeric_cols = [
+    "signals_count",
+    "messages_count",
+    "uniq_data_count",
+    "interval_mean",
+    "interval_std",
+    "uniq_dlc"
+]
 
-    if 'Timestamp' in df.columns:
-        df['Timestamp'] = pd.to_datetime(df['Timestamp'])
-        df['time_diff'] = df['Timestamp'].diff().dt.total_seconds().fillna(0)
+for col in numeric_cols:
+    df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    if 'ID' in df.columns:
-        df['ID_frequency'] = df.groupby('ID')['ID'].transform('count')
+df = df.fillna(0)
 
-    return df
+st.success(f"Dataset Loaded: {df.shape[0]} rows")
 
+df["data_ratio"] = df["uniq_data_count"] / (df["messages_count"] + 1)
 
-def detect_attacks(df, threshold=0.24):
-    df_model = df.select_dtypes(include=np.number)
+df["burst_score"] = df["messages_count"] / (df["interval_mean"] + 1e-6)
 
-    if model is not None:
-        probs = model.predict_proba(df_model)[:, 1]
-    else:
-        probs = np.random.uniform(0, 1, len(df_model))
+df["timing_score"] = df["interval_std"] / (df["interval_mean"] + 1e-6)
 
-    df['risk_score'] = probs
-    df['prediction'] = (probs >= threshold).astype(int)
+df["signal_density"] = df["signals_count"] / (df["uniq_dlc"] + 1)
 
-    labels = []
-    for p in probs:
-        if p > 0.85:
-            labels.append("Fabrication Attack")
-        elif p > 0.70:
-            labels.append("Masquerade Attack")
-        elif p > 0.50:
-            labels.append("Fuzzing Attack")
-        elif p > 0.24:
-            labels.append("Suspension Attack")
-        else:
-            labels.append("Normal")
+df["repeat_ratio"] = 1 - df["data_ratio"]
 
-    df['attack_type'] = labels
-    return df
+features = [
+    "signals_count",
+    "messages_count",
+    "uniq_data_count",
+    "interval_mean",
+    "interval_std",
+    "uniq_dlc",
+    "data_ratio",
+    "burst_score",
+    "timing_score",
+    "signal_density",
+    "repeat_ratio"
+]
 
+X = df[features].copy()
 
-if uploaded_file is not None:
+scaler = RobustScaler()
+X_scaled = scaler.fit_transform(X)
 
-    df = pd.read_parquet(uploaded_file)
-    st.dataframe(df.head())
+model = IsolationForest(
+    n_estimators=500,
+    contamination=0.20,
+    max_samples="auto",
+    bootstrap=True,
+    random_state=42
+)
 
-    st.metric("Messages", len(df))
-    st.metric("Colonnes", len(df.columns))
-    st.metric("Valeurs manquantes", int(df.isnull().sum().sum()))
+model.fit(X_scaled)
 
-    df_clean = preprocess_data(df)
+scores = -model.decision_function(X_scaled)
 
-    progress = st.progress(0)
-    for i in range(100):
-        time.sleep(simulation_speed)
-        progress.progress(i + 1)
+scores_norm = (scores - scores.min()) / (scores.max() - scores.min() + 1e-9)
 
-    results_df = detect_attacks(df_clean, threshold_manual)
+df["risk_score"] = scores_norm * 100
 
-    total = len(results_df)
-    attacks = (results_df['prediction'] == 1).sum()
-    normal = total - attacks
-    risk_avg = results_df['risk_score'].mean() * 100
+threshold = np.percentile(df["risk_score"], 80)
 
-    st.metric("Messages", total)
-    st.metric("Attaques", attacks)
-    st.metric("Normal", normal)
-    st.metric("Risque moyen", f"{risk_avg:.2f}%")
+df["is_attack"] = np.where(df["risk_score"] >= threshold, 1, 0)
 
-    attack_dist = results_df['attack_type'].value_counts().reset_index()
-    attack_dist.columns = ['Attack', 'Count']
+df["attack_type"] = "Normal Traffic"
 
-    st.plotly_chart(px.bar(attack_dist, x='Attack', y='Count'))
+msg_high = df["messages_count"].quantile(0.97)
+uniq_high = df["uniq_data_count"].quantile(0.97)
+interval_low = df["interval_mean"].quantile(0.05)
+std_high = df["interval_std"].quantile(0.95)
+burst_high = df["burst_score"].quantile(0.97)
+timing_high = df["timing_score"].quantile(0.95)
 
-    st.plotly_chart(go.Figure(data=[go.Pie(
-        labels=['Normal', 'Alertes'],
-        values=[normal, attacks],
-        hole=0.5
-    )]))
+dos_condition = (
+    (df["messages_count"] > msg_high)
+    & (df["interval_mean"] < interval_low)
+    & (df["burst_score"] > burst_high)
+    & (df["data_ratio"] < 0.4)
+)
 
-    st.plotly_chart(px.line(results_df.head(500), y='risk_score'))
+df.loc[dos_condition, "attack_type"] = "DoS Attack"
 
-    alerts_df = results_df[results_df['prediction'] == 1][['risk_score', 'attack_type']]
-    st.dataframe(alerts_df.head(100))
+fuzz_condition = (
+    (df["uniq_data_count"] > uniq_high)
+    & (df["data_ratio"] > 0.75)
+    & (df["timing_score"] > timing_high)
+)
 
-    if 'Label' in results_df.columns:
-        y_true = results_df['Label']
-        y_pred = results_df['prediction']
+df.loc[fuzz_condition, "attack_type"] = "Fuzzing Attack"
 
-        cm = confusion_matrix(y_true, y_pred)
-        st.plotly_chart(px.imshow(cm, text_auto=True))
+replay_condition = (
+    (df["messages_count"] > msg_high * 0.6)
+    & (df["repeat_ratio"] > 0.80)
+    & (df["interval_std"] < std_high * 0.5)
+)
 
-        report = classification_report(y_true, y_pred, output_dict=True)
-        st.dataframe(pd.DataFrame(report).transpose())
+df.loc[replay_condition, "attack_type"] = "Replay Attack"
 
-        fpr, tpr, _ = roc_curve(y_true, results_df['risk_score'])
-        roc_auc = auc(fpr, tpr)
+df.loc[
+    (df["risk_score"] > 65) & (df["attack_type"] == "Normal Traffic"),
+    "attack_type"
+] = "Suspicious Activity"
 
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=fpr, y=tpr, name=f"AUC {roc_auc:.2f}"))
-        fig.add_trace(go.Scatter(x=[0, 1], y=[0, 1], line=dict(dash='dash')))
-        st.plotly_chart(fig)
+df.loc[df["attack_type"] != "Normal Traffic", "is_attack"] = 1
 
-    if model is not None:
-        try:
-            feature_names = results_df.select_dtypes(include=np.number).columns
-            importances = model.feature_importances_
+normal_pct = round((df["is_attack"] == 0).mean() * 100, 2)
+attack_pct = round((df["is_attack"] == 1).mean() * 100, 2)
+global_risk = round(df["risk_score"].mean(), 2)
 
-            imp_df = pd.DataFrame({
-                'Feature': feature_names[:len(importances)],
-                'Importance': importances
-            }).sort_values('Importance').tail(15)
+c1, c2, c3 = st.columns(3)
 
-            st.plotly_chart(px.bar(imp_df, x='Importance', y='Feature', orientation='h'))
-        except:
-            pass
+c1.metric("Normal Traffic", f"{normal_pct}%")
+c2.metric("Attacks Detected", f"{attack_pct}%")
+c3.metric("Global Risk", f"{global_risk}%")
 
-    csv = results_df.to_csv(index=False).encode('utf-8')
-    st.download_button("Télécharger CSV", csv, "results.csv", "text/csv")
+alerts = df[df["is_attack"] == 1].sort_values("risk_score", ascending=False)
 
-else:
-    st.info("Uploader un fichier parquet")
+st.subheader("Detected Threats")
+
+st.dataframe(
+    alerts[
+        [
+            "session_id",
+            "arbitration_id",
+            "messages_count",
+            "uniq_data_count",
+            "risk_score",
+            "attack_type"
+        ]
+    ],
+    use_container_width=True
+)
+
+st.subheader("Attack Distribution")
+
+fig1 = px.histogram(alerts, x="attack_type", color="attack_type")
+st.plotly_chart(fig1, use_container_width=True)
+
+st.subheader("Risk Timeline")
+
+fig2 = px.line(df.head(1000), y="risk_score")
+st.plotly_chart(fig2, use_container_width=True)
+
+st.subheader("Traffic Classification")
+
+fig3 = px.pie(df, names="attack_type")
+st.plotly_chart(fig3, use_container_width=True)
+
+st.subheader("Top Dangerous Sessions")
+
+top = df.sort_values("risk_score", ascending=False).head(20)
+
+st.dataframe(
+    top[
+        [
+            "session_id",
+            "arbitration_id",
+            "risk_score",
+            "attack_type"
+        ]
+    ],
+    use_container_width=True
+)
+
+st.subheader("Global Threat Level")
+
+fig4 = go.Figure(go.Indicator(
+    mode="gauge+number",
+    value=global_risk,
+    title={'text': "Threat Score"},
+    gauge={
+        'axis': {'range': [0, 100]},
+        'bar': {'color': "red"},
+        'steps': [
+            {'range': [0, 30], 'color': "green"},
+            {'range': [30, 70], 'color': "orange"},
+            {'range': [70, 100], 'color': "red"}
+        ]
+    }
+))
+
+st.plotly_chart(fig4, use_container_width=True)
+
+st.subheader("Feature Correlation")
+
+corr = df[features].corr()
+
+fig5 = px.imshow(corr, text_auto=True, aspect="auto")
+
+st.plotly_chart(fig5, use_container_width=True)
+
+st.success("X-CANIDS Detection Engine Running")
