@@ -62,3 +62,25 @@ elif isinstance(dataset_final.index, pd.DatetimeIndex):
 print(f" DATASET PRÊT : {dataset_final.shape[0]} lignes .")
 print(f" Répartition : {dataset_final[col_label].value_counts(normalize=True)[1]*100:.2f}% d'attaques.")
 
+
+
+# ------ pour les données cloud
+from sklearn.preprocessing import MinMaxScaler
+import joblib
+
+def scale_signals_xcanids(df, save_path="models/xcanids_scaler.pkl"):
+    #  Sélectionner uniquement les colonnes numériques
+    numeric_df = df.select_dtypes(include=[np.number])
+    
+    #  Initialisation du scaler (Normalisation 0-1)
+    scaler = MinMaxScaler()
+    
+    # Fit (Apprentissage des min/max) et Transform
+    scaled_data = scaler.fit_transform(numeric_df)
+    
+    # SAUVEGARDE : Crucial pour l'inférence Cloud/Temps Réel
+    joblib.dump(scaler, save_path)
+    print(f" Scaler sauvegardé sous {save_path}")
+    
+    return scaled_data, numeric_df.columns
+
