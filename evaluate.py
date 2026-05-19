@@ -44,5 +44,23 @@ for i, chemin in enumerate(liste_captures):
     gc.collect()
 
 print("-" * 70)
+
+
+
+# - ÉVALUATION 
+y_pred = model_global.predict(X_test)
+
+print("\n--- RAPPORT DE PERFORMANCE ---")
+print(classification_report(y_test, y_pred))
+
+# la Matrice de confusion
+cm = confusion_matrix(y_test, y_pred)
+fig_cm = px.imshow(cm, 
+                   labels=dict(x="Prédit", y="Réel"),
+                   x=['Normal', 'Attaque'],
+                   y=['Normal', 'Attaque'],
+                   text_auto=True,
+                   title="Matrice de Confusion : X-CANIDS")
+fig_cm.show()
 print(" FIN DU SCAN : PROTECTION RÉSEAU OPÉRATIONNELLE")
 print("-" * 70)
