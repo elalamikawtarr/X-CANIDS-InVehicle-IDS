@@ -1,0 +1,53 @@
+import pandas as pd
+import time
+
+print("--- DÉMARRAGE DU SYSTÈME DE PRÉVENTION (IPS / GATEWAY) ---")
+
+# On simule un flux de données en temps réel (ex: les 200 prochains messages du bus CAN)
+flux_temps_reel = X_test_G.iloc[:200].copy()
+labels_reels = y_test_G.iloc[:200].values # Juste pour vérifier si on a bien agi
+
+messages_bloques = 0
+messages_autorises = 0
+fausses_alertes_bloquees = 0 # Les erreurs de l'IA
+attaques_bloquees = 0        # Les vrais succès
+
+print("  Surveillance du trafic CAN en cours       ")
+
+for index, (i, message) in enumerate(flux_temps_reel.iterrows()):
+    # 1. Le modèle analyse le message instantanément
+    # On reformate le message pour XGBoost (1 ligne, X colonnes)
+    msg_df = pd.DataFrame([message])
+    
+    # 2. Calcul du score de risque
+    probabilite_attaque = modele_global.predict_proba(msg_df)[:, 1][0]
+    
+    # 3. MÉCANISME DE SÉCURITÉ (La décision)
+    # On utilise le seuil parfait que tu as trouvé (ex: 0.7851)
+    if probabilite_attaque >= seuil_parfait_G:
+        messages_bloques += 1
+        statut = " ?? BLOQUÉ (Drop)"
+        
+        # Vérification secrète pour nos statistiques
+        if labels_reels[index] == 1:
+            attaques_bloquees += 1
+        else:
+            fausses_alertes_bloquees += 1
+            
+    else:
+        messages_autorises += 1
+        statut = " AUTORISÉ "
+
+    # Affichage des 10 premiers messages pour visualiser l'action
+    if index < 10:
+        print(f"Message #{index+1} | Risque : {probabilite_attaque:.2f} | Action : {statut}")
+        time.sleep(0.2) # Simule le temps de traitement
+
+
+print(" RAPPORT DU PARE-FEU (SECURITY GATEWAY) ")
+print("==================================================")
+print(f"Total messages scannés : {len(flux_temps_reel)}")
+print(f"Messages sains acheminés : {messages_autorises}")
+print(f" Messages dangereux détruits : {messages_bloques}")
+print(f"   Vraies attaques neutralisées : {attaques_bloquees}")
+print(f"   Dommages collatéraux (Normaux bloqués) : {fausses_alertes_bloquees}")
