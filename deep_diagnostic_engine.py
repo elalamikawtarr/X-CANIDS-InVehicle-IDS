@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import tensorflow as tf
-from sklearn.preprocessing import MinMaxScaler # Correction de l'erreur NameError
+from sklearn.preprocessing import MinMaxScaler 
 
 
 def scale_signals(df):
@@ -53,3 +53,29 @@ try:
 
 except Exception as e:
     print(f"Erreur Critique : {e}")
+    import plotly.express as px
+
+
+
+# Création d'un DataFrame pour le graphique
+df_errors = pd.DataFrame({
+    'Signal': df_brut.select_dtypes(include=[np.number]).columns,
+    'Reconstruction_Error': errors
+}).sort_values(by='Reconstruction_Error', ascending=False)
+
+# Affichage du Top 15 des signaux les plus "suspects"
+fig = px.bar(df_errors.head(15), 
+             x='Reconstruction_Error', 
+             y='Signal', 
+             orientation='h',
+             title=" Analyse X-CANIDS : Erreur de reconstruction par Signal",
+             labels={'Reconstruction_Error': 'Score d\'Anomalie (MSE)'},
+             color='Reconstruction_Error',
+             color_continuous_scale='Reds')
+
+fig.update_layout(yaxis={'categoryorder':'total ascending'})
+fig.show()
+
+# ** Sauvegarde au format standard Keras
+autoencoder.save("x_canids_autoencoder_v1.keras")
+print(" Modèle sauvegardé sous 'x_canids_autoencoder_v1.keras'")
