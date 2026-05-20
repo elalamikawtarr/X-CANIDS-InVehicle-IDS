@@ -1,7 +1,7 @@
 # MODULE D'AUDIT QUALITÉ ET PRÉPARATION FINALE 
 # Ce bloc assure l'intégrité du flux de données avant l'inférence.
 # Il traite les incohérences temporelles, les doublons et convertit les types
-# de données pour garantir la compatibilité avec les algorithmes de Gradient Boosting.
+# de données pour garantir la compatibilité avec les algorithmes de Gradient Boosting
 def verifier_qualite(df, nom_fichier):
     print(f"--- Audit Qualité : {nom_fichier} ---")
     
