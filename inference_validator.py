@@ -1,3 +1,8 @@
+# VALIDATION DE LA DIMENSIONNALITÉ ET INFÉRENCE IA
+# Ce bloc assure la conformité entre les données d'entrée et le modèle chargé.
+# Il vérifie que le nombre de signaux (dimensions) est identique à celui utilisé 
+# lors de l'entraînement pour éviter les erreurs de calcul matriciel (Crash).
+
 # Sélectionner uniquement le numérique
 X_numeric = df_brut.select_dtypes(include=[np.number]).fillna(0)
 
