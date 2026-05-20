@@ -1,3 +1,8 @@
+# SIMULATEUR D'IPS (INTRUSION PREVENTION SYSTEM) --GATEWAY SÉCURISÉE
+# Ce module simule le pare-feu en temps réel du véhicule. 
+# Chaque message est filtré individuellement : s'il dépasse le seuil critique, 
+# la Gateway procède au "Message Dropping" (destruction de la trame) pour 
+# protéger les calculateurs critiques 
 import pandas as pd
 import time
 
