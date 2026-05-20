@@ -1,3 +1,7 @@
+# PIPELINE FINAL X-CANIDS : APPRENTISSAGE ET DIAGNOSTIC AUTOMATISÉ
+# Ce bloc réalise l'entraînement de l'Autoencoder, la détection d'anomalies
+# et génère le graphique d'explicabilité pour identifier le signal corrompu.
+
 import pandas as pd
 import numpy as np
 import tensorflow as tf
