@@ -1,3 +1,8 @@
+# DIAGNOSTIC PAR ANALYSE DE FRÉQUENCE ET FENÊTRAGE 
+# Ce module détecte les anomalies de timing sur le bus CAN.
+# Il identifie les attaques DoS (rafales de messages) et les attaques de 
+# Suspension (extinction d'un ECU) en calculant les dérives du Delta-T.
+
 import pandas as pd
 import glob
 import gc
