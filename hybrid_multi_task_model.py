@@ -1,3 +1,9 @@
+# ARCHITECTURE HYBRIDE MULTI-TÂCHES (X-CANIDS ADVANCED)
+# Ce modèle combine deux objectifs en une seule structure :
+# 1. Branche Autoencodeur : Pour la détection d'anomalies (Inconnu).
+# 2. Branche Classifieur : Pour l'identification précise du type d'attaque (Connu).
+# L'espace latent partagé permet une représentation ultra-optimisée des signaux CAN.
+
 import tensorflow as tf
 from tensorflow.keras import layers, models
 
