@@ -1,3 +1,8 @@
+# EXTRACTION DES FEATURES 
+# Ce module transforme les trames CAN brutes en vecteurs statistiques.
+# L'objectif est de capturer le comportement temporel (Intervalles) et la 
+# variabilité des données pour permettre la détection par Machine Learning.
+
 import pandas as pd
 import glob
 
