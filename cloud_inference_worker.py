@@ -55,7 +55,7 @@ X = X.reindex(columns=expected_features, fill_value=0)
 # Calcul des probabilités d'attaque
 probs = model.predict_proba(X)[:, 1]
 
-# Ajout des résultats au DataFrame
+# Ajout des résultats 
 df_brut['anomaly_score'] = probs
 df_brut['is_alert'] = (probs >= SEUIL_OPTIMAL).astype(int)
 
