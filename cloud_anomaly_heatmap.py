@@ -1,3 +1,8 @@
+# MODULE D'EXPLICABILITÉ (XAI) : DIAGNOSTIC PAR RECONSTRUCTION
+# Ce bloc identifie les signaux spécifiques responsables de l'anomalie détectée.
+# On utilise l'erreur de reconstruction (MSE) de l'Autoencoder : plus l'erreur 
+# est élevée pour un signal, plus la probabilité que ce signal soit corrompu est forte.
+***
 import plotly.express as px
 
 # 1. Préparation des données pour le graphique
