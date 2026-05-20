@@ -1,3 +1,8 @@
+# PIPELINE DE CONCATÉNATION ET ÉQUILIBRAGE DE DATASET (ANTI-CRASH)
+# Ce module centralise les captures CAN éparpillées et applique un 
+# sous-échantillonnage (Under-sampling) pour équilibrer le trafic Normal/Attaque.
+# Il optimise également la mémoire vive via la conversion des types (Float32).
+
 import pandas as pd
 import glob
 import gc
