@@ -1,3 +1,8 @@
+# OPTIMISATION DES HYPERPARAMÈTRES 
+# Utilisation de RandomizedSearchCV pour trouver la meilleure configuration de XGBoost.
+# L'objectif est de maximiser le score F1 (équilibre Précision/Rappel) afin de 
+# minimiser les faux positifs tout en ne ratant aucune attaque critique.
+
 from sklearn.model_selection import RandomizedSearchCV
 import xgboost as xgb
 
