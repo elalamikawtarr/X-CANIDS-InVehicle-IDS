@@ -1,3 +1,7 @@
+# DIAGNOSTIC CIBLÉ : IDENTIFICATION DU SIGNAL SUSPECT
+# Ce module utilise la distance entre le signal réel (X_test_scaled) et la 
+# reconstruction de l'IA (S_pred). Le signal présentant l'erreur quadratique 
+# moyenne (MSE) la plus élevée est identifié comme le vecteur de l'attaque
 # Préparation des données (X_test_scaled)
 X_test = df_brut.select_dtypes(include=[np.number])
 X_test_scaled = scale_signals_xcanids(X_test)
