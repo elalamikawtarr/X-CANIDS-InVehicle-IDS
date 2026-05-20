@@ -1,3 +1,9 @@
+# Archi DEEP LEARNING : AUTOENCODER POUR DÉTECTION D'ANOMALIES
+# Ce modèle apprend à compresser (Encoder) et reconstruire  le signal normal
+# Une erreur de reconstruction élevée indique une divergence par rapport au 
+
+
+
 import tensorflow as tf
 from tensorflow.keras import layers, models
 
