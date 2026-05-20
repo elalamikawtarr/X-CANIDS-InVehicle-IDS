@@ -84,6 +84,16 @@ Les approches classiques basées sur des règles ne suffisent plus.
 - `explain.py` → Interprétabilité
   
 --- 
+##  Benchmark & Justification du Modèle
+Pour garantir la sécurité du véhicule, nous avons comparé trois modèles sur un dataset de **313 909 messages CAN**.
+
+| Modèle | Détection (Recall) | Précision | F1-Score | Temps (sec) |
+| :--- | :---: | :---: | :---: | :---: |
+| **XGBoost (Selected)** | **99.34%** | **98.01%** | **0.9867** | **49.28** |
+| Random Forest | 99.69% | 97.45% | 0.9855 | 101.70 |
+| Decision Tree | 97.19% | 98.01% | 0.9760 | 48.26
+
+----
 
 ## References
 [CANet] Hanselmann, M., Strauss, T., Dormann, K., & Ulmer, H. (2020). CANet: An Unsupervised Intrusion Detection System for High Dimensional CAN Bus Data. Ce papier justifie ton choix d'utiliser des Auto-encodeurs (Deep Learning non-supervisé).
