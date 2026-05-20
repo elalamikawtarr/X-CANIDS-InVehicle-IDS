@@ -1,3 +1,9 @@
+
+# ANALYSE DE L'IMPORTANCE DES CARACTÉRISTIQUES (FEATURE IMPORTANCE)
+# Ce module extrait les poids attribués par le modèle XGBoost à chaque signal CAN.
+# Il permet d'identifier quels capteurs (vitesse, angle volant, etc.) sont les
+# plus discriminants pour distinguer un trafic normal d'une intrusion.
+
 import pandas as pd
 import plotly.express as px
 
