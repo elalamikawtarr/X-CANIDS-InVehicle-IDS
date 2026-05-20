@@ -91,3 +91,12 @@ Les approches classiques basées sur des règles ne suffisent plus.
 git clone https://github.com/elalamikawtarr/X-CANIDS-InVehicle-IDS
 cd X-CANIDS-InVehicle-IDS
 pip install -r requirements.txt
+
+---
+## References
+
+[CANet] Hanselmann, M., Strauss, T., Dormann, K., & Ulmer, H. (2020). CANet: An Unsupervised Intrusion Detection System for High Dimensional CAN Bus Data. Ce papier justifie ton choix d'utiliser des Auto-encodeurs (Deep Learning non-supervisé).
+
+[ROAD Dataset] Verma, M. E., et al. (2020). Addressing the lack of comparability & testing in CAN intrusion detection research: A comprehensive guide to CAN IDS data & introduction of the ROAD dataset. arXiv preprint arXiv:2012.14600. Ce papier explique pourquoi les anciens datasets étaient limités et pourquoi le filtrage des données est crucial.
+
+[X-CANIDS] X-CANIDS Dataset (In-Vehicle Signal Dataset). IEEE DataPort. C'est ta source de données principale, celle qui contient les attaques de type Fuzzing, Spoofing et Replay.
