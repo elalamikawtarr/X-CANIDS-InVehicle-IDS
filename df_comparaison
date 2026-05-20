@@ -1,0 +1,44 @@
+# Définir les modèles pour faire une compraison pour le choix de bon model
+models = {
+    "XGBoost (Sélectionné)": XGBClassifier(n_estimators=100, max_depth=6, use_label_encoder=False, eval_metric='logloss'),
+    "Random Forest": RandomForestClassifier(n_estimators=50),
+    "Decision Tree": DecisionTreeClassifier()
+}
+
+results = []
+
+print("--- DÉMARRAGE DU BENCHMARK ---")
+
+for name, model in models.items():
+    print(f"Entraînement de {name}...")
+    start_time = time.time()
+    
+    # Entraînement
+    model.fit(X_train_G, y_train_G)
+    train_time = time.time() - start_time
+    
+    # Prédiction
+    preds = model.predict(X_test_G)
+    
+    # Métriques
+    results.append({
+        "Modèle": name,
+        "Détection (Recall %)": round(recall_score(y_test_G, preds) * 100, 2),
+        "Précision (%)": round(precision_score(y_test_G, preds) * 100, 2),
+        "Score F1": round(f1_score(y_test_G, preds), 4),
+        "Temps (sec)": round(train_time, 2)
+    })
+
+# Affichage des résultats
+df_comparison = pd.DataFrame(results).sort_values(by="Détection (Recall %)", ascending=False)
+display(df_comparison)
+import plotly.express as px
+
+fig = px.bar(df_comparison, x='Modèle', y='Détection (Recall %)', 
+             text='Détection (Recall %)', color='Modèle',
+             title="Comparaison de la capacité de détection des modèles IDS")
+fig.update_traces(texttemplate='%{text:.2s}', textposition='outside')
+fig.show()
+
+
+
