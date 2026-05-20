@@ -1,3 +1,9 @@
+
+# LOGIQUE DE RÉPONSE AUX INCIDENTS & RAPPORT DE VALIDATION
+# Ce bloc simule les contre-mesures d'une Gateway sécurisée automobile.
+# Il évalue la précision du modèle via une matrice de confusion et 
+# déclenche l'action de sécurité appropriée selon la menace détectée.
+
 import pandas as pd
 import glob
 import gc
