@@ -1,5 +1,9 @@
+# PIPELINE D'INFÉRENCE CLOUD : DÉPLOIEMENT ET PUBLICATION
+# Ce script automatise le cycle complet : 
+# 1. Extraction des caractéristiques "Gold" depuis BigQuery.
+# 2. Prédiction en temps réel via le modèle XGBoost/LGBM optimisé.
+# 3. Ré-injection des scores d'anomalies dans le Cloud pour le monitoring.
 
-#  SYSTEME X-CANIDS
 
 import pandas as pd
 import numpy as np
