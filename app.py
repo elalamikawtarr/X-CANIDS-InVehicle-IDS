@@ -22,7 +22,6 @@ st.markdown("Intelligent CAN Bus Intrusion Detection System")
 
 
 KEY_PATH = r"C:\Users\elala\Downloads\Projet\key_cloud.json"
-
 credentials = service_account.Credentials.from_service_account_file(KEY_PATH)
 
 client = bigquery.Client(
