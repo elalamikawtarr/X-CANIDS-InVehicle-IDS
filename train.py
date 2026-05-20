@@ -1,3 +1,8 @@
+# PIPELINE D'ENTRAÎNEMENT FINAL ET DASHBOARD DE PERFORMANCE
+# Ce module réalise l'apprentissage supervisé via XGBoost/LightGBM, calcule 
+# le seuil de décision optimal par la courbe Précision-Rappel, et génère 
+# un Dashboard interactif pour le monitoring du SOC (Security Operations Center).
+
 import xgboost as xgb
 from sklearn.metrics import classification_report
 from sklearn.preprocessing import LabelEncoder
