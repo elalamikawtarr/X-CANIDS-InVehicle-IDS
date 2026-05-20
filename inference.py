@@ -1,3 +1,10 @@
+# 
+# GÉNÉRATEUR DE BILAN DE SÉCURITÉ AUTOMATISÉ
+# Ce script scanne l'ensemble des dumps CAN (fichiers .parquet) pour produire 
+# un diagnostic global. Il fait le lien entre l'anomalie détectée et la 
+# contre-mesure technique recommandée (Watchdog, SecOC, Rate Limiting).
+
+
 import pandas as pd
 import glob
 import gc 
