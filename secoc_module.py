@@ -1,3 +1,8 @@
+# MODULE DE SIMULATION SecOC 
+# Ce script implémente une signature cryptographique HMAC-SHA256 tronquée.
+# Il garantit l'Authenticité (via la clé secrète) et la Fraîcheur (via le FV)
+# pour empêcher les attaques par usurpation (Masquerade) et par rejeu (Replay).
+
 import hmac
 import hashlib
 
