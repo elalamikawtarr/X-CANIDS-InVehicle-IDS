@@ -1,3 +1,8 @@
+# ARCHITECTURE DU CLASSIFIEUR NEURONAL (X-CANIDS DEEP LEARNING)
+# Ce modèle utilise une structure d'encodeur pour extraire les caractéristiques
+# essentielles (Bottleneck) suivies d'une tête de classification Softmax.
+# Objectif : Catégoriser avec précision l'attaque (Normal, Replay, Fuzzing, etc.)
+
 import tensorflow as tf
 from tensorflow.keras import layers, models
 
