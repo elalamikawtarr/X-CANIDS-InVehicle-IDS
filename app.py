@@ -1,3 +1,9 @@
+# DESCRIPTION GÉNÉRALE :
+# Ce script est une application Streamlit qui sert de tableau de bord de sécurité 
+# pour le réseau interne (Bus CAN) d'un véhicule connecté. Son objectif est 
+# d'analyser les flux de données, de détecter les anomalies à l'aide de l'IA, 
+# et de classifier les types d'attaques en temps réel
+
 import streamlit as st
 import pandas as pd
 import numpy as np
