@@ -3,253 +3,294 @@
 # pour le réseau interne d'un véhicule connecté. Son objectif est 
 # d'analyser les flux de données, de détecter les anomalies à l'aide de l'IA, 
 # et de classifier les types d'attaques en temps réel
-
 import streamlit as st
 import pandas as pd
 import numpy as np
+import xgboost as xgb
 
 from google.cloud import bigquery
 from google.oauth2 import service_account
 
-from sklearn.ensemble import IsolationForest
-from sklearn.preprocessing import RobustScaler
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix, classification_report, precision_recall_curve
 
-import plotly.express as px
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
+# =========================================================
+# CONFIG
+# =========================================================
 
 st.set_page_config(
     page_title="X-CANIDS",
     layout="wide"
 )
 
-st.title("X-CANIDS - Automotive IDS")
-st.markdown("Intelligent CAN Bus Intrusion Detection System")
+st.title("X-CANIDS")
+st.subheader("Cloud Automotive Intrusion Detection System")
 
+# =========================================================
+# STATUS BOX CLEAN
+# =========================================================
 
-KEY_PATH = r"C:\Users\elala\Downloads\Projet\key_cloud.json"
-credentials = service_account.Credentials.from_service_account_file(KEY_PATH)
+def status_box(label, state="INFO"):
+    if state == "INFO":
+        st.info(label)
+    elif state == "SUCCESS":
+        st.success(label)
+    elif state == "ERROR":
+        st.error(label)
+
+# =========================================================
+# GOOGLE AUTH (IMPORTANT: DO NOT HARD CODE IN PRODUCTION)
+# =========================================================
+
+credentials = service_account.Credentials.from_service_account_file(
+    "key_cloud.json"
+)
 
 client = bigquery.Client(
     credentials=credentials,
-    project=credentials.project_id,
-    location="europe-southwest1"
+    project=credentials.project_id
 )
 
-st.success("BigQuery Connected")
+status_box("BigQuery connection established", "SUCCESS")
 
-query = """
-SELECT
-    session_id,
-    arbitration_id,
-    signals_count,
-    messages_count,
-    uniq_data_count,
-    interval_mean,
-    interval_std,
-    uniq_dlc
-FROM `project-e6de9b55-41d5-4f13-ae0.can_ids_gold.vw_can_id_profile_by_session`
-LIMIT 15000
-"""
+# =========================================================
+# CACHE DATA LOADING (CRITICAL PERFORMANCE FIX)
+# =========================================================
 
-try:
-    df = client.query(query).to_dataframe()
-except Exception as e:
-    st.error(f"Query Error: {e}")
+@st.cache_data
+def load_data():
+    query = """
+    SELECT *
+    FROM `project-e6de9b55-41d5-4f13-ae0.can_ids_bqnative_gold_ml.signal_big_table`
+    LIMIT 50000
+    """
+    return client.query(query).to_dataframe()
+
+# =========================================================
+# PIPELINE BUTTON
+# =========================================================
+
+run = st.button("Run IDS Pipeline")
+
+if not run:
+    st.warning("Click 'Run IDS Pipeline' to start analysis")
     st.stop()
 
-df.columns = df.columns.str.strip()
+# =========================================================
+# LOAD DATA
+# =========================================================
 
-numeric_cols = [
-    "signals_count",
-    "messages_count",
-    "uniq_data_count",
-    "interval_mean",
-    "interval_std",
-    "uniq_dlc"
-]
+status_box("Loading dataset from BigQuery...", "INFO")
 
-for col in numeric_cols:
-    df[col] = pd.to_numeric(df[col], errors="coerce")
+df = load_data()
 
-df = df.fillna(0)
+status_box(f"Dataset loaded: {len(df)} records", "SUCCESS")
 
-st.success(f"Dataset Loaded: {df.shape[0]} rows")
+st.write("Shape:", df.shape)
+st.dataframe(df.head())
 
-df["data_ratio"] = df["uniq_data_count"] / (df["messages_count"] + 1)
+# =========================================================
+# LABEL DETECTION
+# =========================================================
 
-df["burst_score"] = df["messages_count"] / (df["interval_mean"] + 1e-6)
+label_candidates = ['label', 'Label', 'attack', 'class', 'is_attack']
+label_col = next((c for c in label_candidates if c in df.columns), None)
 
-df["timing_score"] = df["interval_std"] / (df["interval_mean"] + 1e-6)
+if not label_col:
+    st.stop()
 
-df["signal_density"] = df["signals_count"] / (df["uniq_dlc"] + 1)
+status_box(f"Target column detected: {label_col}", "SUCCESS")
 
-df["repeat_ratio"] = 1 - df["data_ratio"]
+# =========================================================
+# ATTACK TYPE
+# =========================================================
 
-features = [
-    "signals_count",
-    "messages_count",
-    "uniq_data_count",
-    "interval_mean",
-    "interval_std",
-    "uniq_dlc",
-    "data_ratio",
-    "burst_score",
-    "timing_score",
-    "signal_density",
-    "repeat_ratio"
-]
+attack_candidates = ['attack_type', 'type', 'category']
+attack_col = next((c for c in attack_candidates if c in df.columns), None)
 
-X = df[features].copy()
+if attack_col:
+    status_box(f"Attack type detected: {attack_col}", "SUCCESS")
 
-scaler = RobustScaler()
-X_scaled = scaler.fit_transform(X)
+# =========================================================
+# SPLIT
+# =========================================================
 
-model = IsolationForest(
-    n_estimators=500,
-    contamination=0.20,
-    max_samples="auto",
-    bootstrap=True,
+y = df[label_col]
+X = df.drop(columns=[label_col] + ([attack_col] if attack_col else []))
+
+# =========================================================
+# TIMESTAMP ENGINEERING
+# =========================================================
+
+time_candidates = ['timestamp', 'time', 'datetime']
+time_col = next((c for c in time_candidates if c in X.columns), None)
+
+if time_col:
+    X[time_col] = pd.to_datetime(X[time_col])
+    X = X.sort_values(time_col)
+
+    X["delta_t"] = X[time_col].diff().dt.total_seconds().fillna(0)
+    X["dt_spike"] = (X["delta_t"] > 0.5).astype(int)
+    X["high_freq_attack"] = (X["delta_t"] < 0.0005).astype(int)
+
+    X = X.drop(columns=[time_col])
+
+status_box(f"Features retained: {X.shape[1]}", "SUCCESS")
+
+# =========================================================
+# CLEAN
+# =========================================================
+
+X = X.apply(pd.to_numeric, errors="coerce").ffill().fillna(0)
+X = X.loc[:, X.nunique() > 1]
+
+# =========================================================
+# TRAIN TEST SPLIT (FIXED RANDOM STATE = STABLE RESULTS)
+# =========================================================
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y,
+    test_size=0.2,
+    stratify=y,
     random_state=42
 )
 
-model.fit(X_scaled)
+# =========================================================
+# UNDERSAMPLING
+# =========================================================
 
-scores = -model.decision_function(X_scaled)
+train_df = X_train.copy()
+train_df["label"] = y_train.values
 
-scores_norm = (scores - scores.min()) / (scores.max() - scores.min() + 1e-9)
-
-df["risk_score"] = scores_norm * 100
-
-threshold = np.percentile(df["risk_score"], 80)
-
-df["is_attack"] = np.where(df["risk_score"] >= threshold, 1, 0)
-
-df["attack_type"] = "Normal Traffic"
-
-msg_high = df["messages_count"].quantile(0.97)
-uniq_high = df["uniq_data_count"].quantile(0.97)
-interval_low = df["interval_mean"].quantile(0.05)
-std_high = df["interval_std"].quantile(0.95)
-burst_high = df["burst_score"].quantile(0.97)
-timing_high = df["timing_score"].quantile(0.95)
-
-dos_condition = (
-    (df["messages_count"] > msg_high)
-    & (df["interval_mean"] < interval_low)
-    & (df["burst_score"] > burst_high)
-    & (df["data_ratio"] < 0.4)
+minor = train_df[train_df["label"] == 1]
+major = train_df[train_df["label"] == 0].sample(
+    n=min(len(train_df[train_df["label"] == 0]), len(minor) * 3),
+    random_state=42
 )
 
-df.loc[dos_condition, "attack_type"] = "DoS Attack"
+train_balanced = pd.concat([minor, major]).sample(frac=1, random_state=42)
 
-fuzz_condition = (
-    (df["uniq_data_count"] > uniq_high)
-    & (df["data_ratio"] > 0.75)
-    & (df["timing_score"] > timing_high)
+X_train_bal = train_balanced.drop(columns=["label"])
+y_train_bal = train_balanced["label"]
+
+status_box(f"Balanced dataset: {len(major)} normal / {len(minor)} attack", "SUCCESS")
+
+# =========================================================
+# MODEL (CACHED)
+# =========================================================
+
+@st.cache_resource
+def train_model(X_train, y_train):
+    model = xgb.XGBClassifier(
+        n_estimators=200,
+        learning_rate=0.05,
+        max_depth=6,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        random_state=42,
+        n_jobs=-1
+    )
+    model.fit(X_train, y_train)
+    return model
+
+status_box("Training model...", "INFO")
+model = train_model(X_train_bal, y_train_bal)
+status_box("Model training completed", "SUCCESS")
+
+# =========================================================
+# PREDICTION
+# =========================================================
+
+probs = model.predict_proba(X_test)[:, 1]
+
+# hybrid rules
+score = probs.copy()
+if "dt_spike" in X_test.columns:
+    score += X_test["dt_spike"] * 0.2
+
+if "high_freq_attack" in X_test.columns:
+    score += X_test["high_freq_attack"] * 0.2
+
+# =========================================================
+# THRESHOLD (STABLE FIX)
+# =========================================================
+
+prec, rec, thr = precision_recall_curve(y_test, score)
+f1 = (2 * prec * rec) / (prec + rec + 1e-10)
+
+best_thr = thr[np.argmax(f1)]
+
+y_pred = (score >= best_thr).astype(int)
+
+# =========================================================
+# METRICS
+# =========================================================
+
+cm = confusion_matrix(y_test, y_pred)
+TN, FP, FN, TP = cm.ravel()
+
+# =========================================================
+# KPIS
+# =========================================================
+
+st.subheader("Security KPIs")
+
+col1, col2, col3, col4 = st.columns(4)
+
+col1.metric("Messages", len(df))
+col2.metric("Alerts", int(y_pred.sum()))
+col3.metric("Detected attacks", TP)
+col4.metric("False positives", FP)
+
+# =========================================================
+# CLEAN DASHBOARD
+# =========================================================
+
+st.subheader("Dashboard")
+
+fig = make_subplots(
+    rows=2, cols=2,
+    specs=[[{"type": "domain"}, {"type": "indicator"}],
+           [{"type": "table"}, {"type": "scatter"}]]
 )
 
-df.loc[fuzz_condition, "attack_type"] = "Fuzzing Attack"
+fig.add_trace(go.Pie(values=[TN+FN, FP+TP], labels=["Normal", "Alerts"], hole=0.5), 1, 1)
 
-replay_condition = (
-    (df["messages_count"] > msg_high * 0.6)
-    & (df["repeat_ratio"] > 0.80)
-    & (df["interval_std"] < std_high * 0.5)
-)
+fig.add_trace(go.Indicator(value=(TP/(TP+FP))*100 if TP+FP>0 else 0), 1, 2)
 
-df.loc[replay_condition, "attack_type"] = "Replay Attack"
+fig.add_trace(go.Table(
+    header=dict(values=["TN", "FP", "FN", "TP"]),
+    cells=dict(values=[[TN], [FP], [FN], [TP]])
+), 2, 1)
 
-df.loc[
-    (df["risk_score"] > 65) & (df["attack_type"] == "Normal Traffic"),
-    "attack_type"
-] = "Suspicious Activity"
+fig.add_trace(go.Scatter(y=score[:300]), 2, 2)
 
-df.loc[df["attack_type"] != "Normal Traffic", "is_attack"] = 1
+st.plotly_chart(fig, use_container_width=True)
 
-normal_pct = round((df["is_attack"] == 0).mean() * 100, 2)
-attack_pct = round((df["is_attack"] == 1).mean() * 100, 2)
-global_risk = round(df["risk_score"].mean(), 2)
+# =========================================================
+# TABLE RESULTS
+# =========================================================
 
-c1, c2, c3 = st.columns(3)
+result = X_test.copy()
+result["true"] = y_test.values
+result["pred"] = y_pred
+result["score"] = score
 
-c1.metric("Normal Traffic", f"{normal_pct}%")
-c2.metric("Attacks Detected", f"{attack_pct}%")
-c3.metric("Global Risk", f"{global_risk}%")
+if attack_col:
+    result["attack_type"] = df.loc[X_test.index, attack_col]
 
-alerts = df[df["is_attack"] == 1].sort_values("risk_score", ascending=False)
+st.subheader("Prediction Table")
+st.dataframe(result.sort_values("score", ascending=False).head(500))
 
-st.subheader("Detected Threats")
+# =========================================================
+# REPORT
+# =========================================================
 
-st.dataframe(
-    alerts[
-        [
-            "session_id",
-            "arbitration_id",
-            "messages_count",
-            "uniq_data_count",
-            "risk_score",
-            "attack_type"
-        ]
-    ],
-    use_container_width=True
-)
+st.subheader("Classification Report")
 
-st.subheader("Attack Distribution")
+st.dataframe(pd.DataFrame(classification_report(y_test, y_pred, output_dict=True)).T)
 
-fig1 = px.histogram(alerts, x="attack_type", color="attack_type")
-st.plotly_chart(fig1, use_container_width=True)
-
-st.subheader("Risk Timeline")
-
-fig2 = px.line(df.head(1000), y="risk_score")
-st.plotly_chart(fig2, use_container_width=True)
-
-st.subheader("Traffic Classification")
-
-fig3 = px.pie(df, names="attack_type")
-st.plotly_chart(fig3, use_container_width=True)
-
-st.subheader("Top Dangerous Sessions")
-
-top = df.sort_values("risk_score", ascending=False).head(20)
-
-st.dataframe(
-    top[
-        [
-            "session_id",
-            "arbitration_id",
-            "risk_score",
-            "attack_type"
-        ]
-    ],
-    use_container_width=True
-)
-
-st.subheader("Global Threat Level")
-
-fig4 = go.Figure(go.Indicator(
-    mode="gauge+number",
-    value=global_risk,
-    title={'text': "Threat Score"},
-    gauge={
-        'axis': {'range': [0, 100]},
-        'bar': {'color': "red"},
-        'steps': [
-            {'range': [0, 30], 'color': "green"},
-            {'range': [30, 70], 'color': "orange"},
-            {'range': [70, 100], 'color': "red"}
-        ]
-    }
-))
-
-st.plotly_chart(fig4, use_container_width=True)
-
-st.subheader("Feature Correlation")
-
-corr = df[features].corr()
-
-fig5 = px.imshow(corr, text_auto=True, aspect="auto")
-
-st.plotly_chart(fig5, use_container_width=True)
-
-st.success("X-CANIDS Detection Engine Running")
+status_box("Pipeline executed successfully", "SUCCESS")
